@@ -327,6 +327,7 @@ class SearchBar(QWidget):
         self._config.dismiss_mode = mode
         self._config.save()
         self._update_secs_row()
+        self._arm_autohide()  # 切换后立即生效:自动->启动倒计时,固定->停止
 
     def _make_secs_row(self, menu: QMenu) -> QWidgetAction:
         """秒数编辑行:作为「自动」的缩进子行,固定驻留时置灰。"""
@@ -376,6 +377,7 @@ class SearchBar(QWidget):
             self._config.auto_hide_seconds = val
             self._config.save()
             self._update_secs_row()
+            self._arm_autohide()  # 秒数改动后按新值重新计时
 
     def _set_autostart(self, on: bool) -> None:
         self._config.autostart = bool(on)
