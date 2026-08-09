@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 虚拟环境
+.venv/
+
+# PyInstaller 产物
+build/
+dist/
+
+# 运行时数据(便携版)
+data/
