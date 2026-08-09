@@ -10,6 +10,8 @@ DeepSeek 驱动的 Windows 翻译 / 解释悬浮窗工具。浏览网页或读 P
 - 数据(配置、**加密的** API key、历史记录)都保存在 exe 旁的 `data\` 文件夹,**拷走整个文件夹 = 换设备数据一起带走**;
 - 首次使用需输入一次 DeepSeek API key(Windows DPAPI 加密保存,只本机当前用户可解)。
 
+也可以直接从 **[GitHub Releases](https://github.com/ReAmuroRay/DSTranslator/releases)** 下载最新绿色版 zip(解压即用)。
+
 > 面向最终用户的操作说明见 [`docs/使用说明.md`](docs/使用说明.md)。
 
 ## 功能
