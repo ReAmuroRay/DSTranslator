@@ -5,9 +5,10 @@ __pycache__/
 # 虚拟环境
 .venv/
 
-# PyInstaller 产物
+# PyInstaller 构建缓存
 build/
-dist/
 
-# 运行时数据(便携版)
-data/
+# 打包产物:dist 同步进仓库,但便携数据(含 API key / 历史)除外
+dist/*
+!dist/DSTranslator/
+dist/DSTranslator/data/
