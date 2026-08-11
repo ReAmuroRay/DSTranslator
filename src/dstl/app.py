@@ -17,12 +17,12 @@ from .ui.history_window import HistoryWindow
 from .ui.search_bar import SearchBar
 
 
-def _build_tray_icon() -> QIcon:
+def _build_tray_icon(enabled: bool = True) -> QIcon:
     pm = QPixmap(64, 64)
     pm.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pm)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setBrush(QColor("#2f6fed"))
+    painter.setBrush(QColor("#2f6fed") if enabled else QColor("#9aa4b0"))
     painter.setPen(Qt.PenStyle.NoPen)
     painter.drawRoundedRect(0, 0, 64, 64, 14, 14)
     painter.setPen(QColor("white"))
@@ -72,8 +72,10 @@ class Application:
 
         self._capture = CaptureManager(
             summon_hotkey=self._config.summon_hotkey,
+            copy_hotkey=self._config.copy_hotkey,
             get_clipboard=get_clip,
         )
+        self._capture.set_enabled(self._config.capture_enabled)
         self._capture.text_captured.connect(self._search_bar.show_with_text)
         self._capture.summon_requested.connect(self._search_bar.show_empty)
         self._capture.start()
@@ -84,17 +86,38 @@ class Application:
 
     def _build_tray(self) -> None:
         menu = QMenu()
+        self._cap_action = menu.addAction("启用捕获")
+        self._cap_action.setCheckable(True)
+        self._cap_action.setChecked(self._config.capture_enabled)
+        self._cap_action.triggered.connect(self._on_capture_enabled)
+        menu.addSeparator()
         menu.addAction("显示 / 隐藏搜索栏", self._toggle_bar)
         menu.addAction("历史记录…", self._show_history)
         menu.addAction("配置 API key…", self._configure_key)
         menu.addSeparator()
         menu.addAction("退出", self._quit)
 
-        self._tray = QSystemTrayIcon(_build_tray_icon())
+        self._tray = QSystemTrayIcon(_build_tray_icon(self._config.capture_enabled))
         self._tray.setContextMenu(menu)
-        self._tray.setToolTip("DSTranslator")
         self._tray.activated.connect(self._on_tray_activated)
+        self._update_tray_state()
         self._tray.show()
+
+    def _on_capture_enabled(self, on: bool) -> None:
+        """捕获开关:托盘勾选 / 搜索栏 ⚙ 开关共用,两处联动同步。"""
+        self._config.capture_enabled = bool(on)
+        self._config.save()
+        if self._capture:
+            self._capture.set_enabled(bool(on))
+        self._update_tray_state()
+
+    def _update_tray_state(self) -> None:
+        on = self._config.capture_enabled
+        # 同步托盘勾选(托盘菜单一次性构建,状态变化时需手动刷新)
+        if getattr(self, "_cap_action", None) is not None:
+            self._cap_action.setChecked(on)
+        self._tray.setIcon(_build_tray_icon(on))
+        self._tray.setToolTip("DSTranslator" if on else "DSTranslator · 捕获已暂停")
 
     def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
@@ -132,8 +155,13 @@ class Application:
         from .ui.shortcut_settings import ShortcutSettingsDialog
 
         dlg = ShortcutSettingsDialog(self._config)
-        if dlg.exec() and dlg.summon_changed():
-            self._capture.update_summon_hotkey(self._config.summon_hotkey)
+        if dlg.exec():
+            if dlg.summon_changed():
+                self._capture.update_summon_hotkey(self._config.summon_hotkey)
+            if dlg.copy_changed():
+                self._capture.update_copy_hotkey(self._config.copy_hotkey)
+            # 对话框内改动的捕获开关(方案C状态条)同步到捕获与托盘
+            self._on_capture_enabled(self._config.capture_enabled)
 
     def _quit(self) -> None:
         if self._capture:

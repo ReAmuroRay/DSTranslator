@@ -83,7 +83,9 @@ class Config:
     web_search_enabled: bool = False       # 联网解释
     dismiss_mode: str = "pin"              # pin(固定驻留) | auto(自动消失)
     auto_hide_seconds: int = 10            # 自动模式下,流式输出结束后多少秒消失
+    capture_enabled: bool = True           # 捕获开关:关闭时复制触发/唤起键都不弹窗
     summon_hotkey: str = "ctrl+alt+s"      # 全局热键(空召搜索栏)
+    copy_hotkey: str = "ctrl+c"            # 复制触发键(默认需双击,自定义单击)
     close_key: str = "esc"                 # 关闭搜索栏的键(弹窗有焦点时生效)
     autostart: bool = False
     bar_x: Optional[int] = None
