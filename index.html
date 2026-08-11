@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSTranslator — 选中文字，双击即译</title>
+<!--
+  DSTranslator 落地页 · GitHub Pages 主页
+  内部术语 ↔ 对外用语映射（见 docs/CONTEXT.md「用户向用语」）：
+    捕获触发的搜索栏 → 悬浮窗；双击触发 → 双击 Ctrl+C；复制触发键 → 复制快捷键
+    捕获开关 → 一键暂停捕获；搜索记录 → 历史记录；翻译/解释 同名
+-->
+<meta name="og:title" content="DSTranslator — 选中文字，双击即译">
+<meta name="og:description" content="DeepSeek 驱动的 Windows 悬浮窗工具：在任意应用里选中外文，双击 Ctrl+C，翻译与解释即刻弹出。读论文遇到术语物理意义不清楚，切到解释当场讲清，不离开当前应用。">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://reamuray.github.io/DSTranslator/">
+<meta name="og:image" content="https://reamuray.github.io/DSTranslator/img/workflow.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232563eb'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif'>译</text></svg>">
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+    --accent:#2563eb; --accent-soft:#eff6ff; --border:#e5e7eb;
+    --radius:12px; --shadow:0 1px 3px rgba(15,23,42,.06),0 10px 28px rgba(15,23,42,.08);
+    --hero-bg:linear-gradient(180deg,#eef4ff 0%,#f6f8fb 70%);
+    --font-head:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    --win-bg:#ffffff; --win-border:#dbe1ea; --win-shadow:0 12px 40px rgba(15,23,42,.18);
+    --demo-bg:#eef2f7; --dot:#c3ccd8;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px; margin:0 auto; padding:0 22px;}
+  h1,h2,h3{font-family:var(--font-head); line-height:1.25;}
+  h2{font-size:clamp(1.5rem,3vw,2rem); margin-bottom:10px;}
+  .sec-sub{color:var(--muted); max-width:640px; margin-bottom:34px;}
+  .btn{
+    display:inline-block; text-decoration:none; font-weight:600; cursor:pointer;
+    border-radius:10px; padding:12px 22px; border:none; font-size:15px;
+    background:var(--accent); color:#fff; box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 35%, transparent);
+  }
+  .btn.ghost{background:var(--card); color:var(--accent); border:1px solid var(--border); box-shadow:none;}
+  .btn.sm{padding:8px 14px; font-size:13px;}
+  .tag{
+    display:inline-block; font-size:12px; color:var(--accent); background:var(--accent-soft);
+    border-radius:999px; padding:3px 12px; margin-bottom:16px; font-weight:600; letter-spacing:.3px;
+  }
+
+  /* ---------- 导航 ---------- */
+  header.nav{
+    position:sticky; top:0; z-index:50; background:color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter:blur(8px); border-bottom:1px solid var(--border);
+  }
+  .nav-inner{display:flex; align-items:center; justify-content:space-between; height:56px;}
+  .logo{display:flex; align-items:center; gap:8px; font-weight:700; font-family:var(--font-head);}
+  .logo .mark{width:24px;height:24px;border-radius:6px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;}
+  .nav-links a{color:var(--muted); text-decoration:none; margin-left:18px; font-size:14px;}
+  .nav-links a:hover{color:var(--accent);}
+
+  /* ---------- Hero ---------- */
+  .hero{background:var(--hero-bg); padding:74px 0 64px;}
+  .hero-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:center;}
+  .hero h1{font-size:clamp(1.9rem,4.5vw,2.8rem); margin-bottom:16px;}
+  .hero h1 em{font-style:normal; color:var(--accent);}
+  .hero p.sub{color:var(--muted); font-size:1.06rem; margin-bottom:26px;}
+  .hero .cta{display:flex; gap:12px; flex-wrap:wrap;}
+  .hero .meta{color:var(--muted); font-size:13px; margin-top:14px;}
+  .hero .meta b{color:var(--text);}
+
+  .floatwin{
+    width:340px; background:var(--win-bg); border:1px solid var(--win-border);
+    border-radius:14px; box-shadow:var(--win-shadow); overflow:hidden;
+  }
+  .fw-grip{height:34px; background:color-mix(in srgb,var(--card) 92%, #000 4%); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-size:11px; color:var(--muted);}
+  .fw-grip .dots{display:flex; gap:5px;}
+  .fw-grip .dots i{width:8px;height:8px;border-radius:50%; background:var(--dot);}
+  .fw-tabs{display:flex; gap:4px; padding:10px 12px 0;}
+  .fw-tab{font-size:12.5px; padding:5px 14px; border-radius:7px 7px 0 0; color:var(--muted); cursor:pointer; border:1px solid transparent;}
+  .fw-tab.on{background:var(--accent-soft); color:var(--accent); font-weight:600; border-color:var(--border); border-bottom-color:transparent;}
+  .fw-body{padding:12px; min-height:150px;}
+  .fw-src{font-size:11px; color:var(--muted); border-left:2px solid var(--border); padding-left:8px; margin-bottom:10px;}
+  .fw-out{font-size:14px;}
+  .fw-caret{display:inline-block;width:2px;height:15px;background:var(--accent);vertical-align:-2px;animation:blink .9s infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .fw-hint{font-size:11px;color:var(--muted);text-align:center;padding:6px 0 4px;border-top:1px dashed var(--border);}
+  .hero-stage{position:relative; display:flex; justify-content:center;}
+  .hero-stage .floatwin{transform:rotate(-1deg);}
+
+  /* ---------- 为什么 ---------- */
+  .pain{padding:56px 0;}
+  .pain-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:10px;}
+  .step-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow);}
+  .step-card .n{font-family:var(--font-head); font-size:13px; color:var(--accent); font-weight:700; display:block; margin-bottom:4px;}
+  .step-card .x{color:var(--muted); font-size:13.5px;}
+  .pain .vs{display:flex; align-items:center; gap:12px; margin:26px 0 6px; color:var(--muted); font-size:13px;}
+  .pain .vs i{flex:1; height:1px; background:var(--border);}
+  .pain .fix{font-size:1.05rem; font-family:var(--font-head);}
+  .cmp{margin-top:36px;}
+  .cmp h3{font-size:16px; margin-bottom:12px; font-family:var(--font-head);}
+  .cmp-table{width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); font-size:13.5px;}
+  .cmp-table th,.cmp-table td{padding:10px 14px; text-align:center; border-bottom:1px solid var(--border);}
+  .cmp-table th{background:var(--accent-soft); font-weight:600;}
+  .cmp-table tr:last-child td{border-bottom:none;}
+  .cmp-table td:first-child,.cmp-table th:first-child{text-align:left; font-weight:600;}
+  .cmp-table th.hl,.cmp-table td.hl{color:var(--accent); font-weight:600; background:color-mix(in srgb,var(--accent-soft) 55%, transparent);}
+
+  /* ---------- 怎么用 ---------- */
+  .demo-sec{background:var(--bg); padding:56px 0;}
+  .demo-box{background:var(--demo-bg); border-radius:var(--radius); border:1px solid var(--border); padding:28px;}
+  .demo-grid{display:grid; grid-template-columns:1fr 1fr; gap:26px; align-items:start;}
+  .doc{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow); min-height:230px; position:relative;}
+  .doc h4{font-family:var(--font-head); font-size:15px; margin-bottom:10px; color:var(--muted); font-weight:600;}
+  .doc p{font-size:14.5px;}
+  .doc .sel{background:var(--accent-soft); border-radius:4px; padding:1px 3px; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%, transparent);}
+  .doc .cursor{position:absolute; width:2px; height:16px; background:var(--accent); opacity:0; transition:all .4s ease;}
+  .demo-ctrls{display:flex; gap:10px; margin-top:18px; align-items:center;}
+  .demo-ctrls .note{font-size:12.5px; color:var(--muted);}
+  .demo-right{display:flex; flex-direction:column; gap:14px; align-items:center;}
+  .demo-right .floatwin{opacity:0; transform:translateY(14px) scale(.97); transition:opacity .45s ease, transform .45s ease;}
+  .demo-right.playing .floatwin{opacity:1; transform:translateY(0) scale(1);}
+  .demo-right .floatwin{transition-delay:.15s;}
+
+  /* 真实截图 */
+  .shots{margin-top:26px;}
+  .shots h3{font-size:15px; margin-bottom:12px; font-family:var(--font-head); color:var(--muted);}
+  .shots .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .shots .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  .shots figure{margin:0; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);}
+  .shots img{width:100%; display:block; border-radius:8px; border:1px solid var(--border);}
+  .shots figcaption{font-size:12.5px; color:var(--muted); padding:8px 4px 2px;}
+  .shots .wide figure{padding:14px;}
+  .shots .wide img{border-radius:10px;}
+
+  /* ---------- 功能 ---------- */
+  .feat{padding:56px 0;}
+  .feat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
+  .feat-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px; box-shadow:var(--shadow);}
+  .feat-card .ic{font-size:19px; margin-bottom:10px;}
+  .feat-card h3{font-size:16px; margin-bottom:6px;}
+  .feat-card p{font-size:13.5px; color:var(--muted);}
+
+  /* ---------- 快速上手 ---------- */
+  .quick{background:var(--bg); padding:56px 0;}
+  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  .step{border:1px solid var(--border); border-radius:var(--radius); background:var(--card); padding:22px; box-shadow:var(--shadow); position:relative;}
+  .step .num{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-family:var(--font-head);margin-bottom:12px;}
+  .step h3{font-size:15.5px; margin-bottom:6px;}
+  .step p{font-size:13.5px; color:var(--muted);}
+  .step code{background:var(--accent-soft); color:var(--accent); padding:1px 6px; border-radius:5px; font-size:12.5px; font-family:Consolas,monospace;}
+
+  /* ---------- 下载 ---------- */
+  .dl{padding:56px 0;}
+  .dl-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:30px; display:flex; gap:26px; align-items:center; flex-wrap:wrap;}
+  .dl-card .info{flex:1; min-width:260px;}
+  .dl-card h3{font-size:18px; margin-bottom:8px;}
+  .dl-card ul{list-style:none; margin:10px 0 0; font-size:13.5px; color:var(--muted);}
+  .dl-card li{padding-left:18px; position:relative; margin-bottom:4px;}
+  .dl-card li::before{content:"✓"; position:absolute; left:0; color:var(--accent); font-weight:700;}
+
+  /* ---------- FAQ ---------- */
+  .faq{padding:56px 0;}
+  .faq-item{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; margin-bottom:10px;}
+  .faq-item summary{cursor:pointer; font-weight:600; font-size:15px;}
+  .faq-item p{color:var(--muted); font-size:14px; margin-top:8px;}
+
+  /* ---------- footer ---------- */
+  footer{padding:34px 0 40px; color:var(--muted); font-size:13.5px;}
+  footer a{color:var(--accent); text-decoration:none;}
+  footer .row{display:flex; gap:18px; flex-wrap:wrap;}
+
+  @media(max-width:840px){
+    .hero-grid,.demo-grid{grid-template-columns:1fr;}
+    .pain-grid,.feat-grid,.steps{grid-template-columns:1fr;}
+    .shots .grid2,.shots .grid3{grid-template-columns:1fr;}
+    .nav-links{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== 导航 ==================== -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <div class="logo"><span class="mark">译</span> DSTranslator</div>
+    <nav class="nav-links">
+      <a href="#how">怎么用</a>
+      <a href="#feat">功能</a>
+      <a href="#start">快速上手</a>
+      <a href="#download">下载</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ==================== Hero ==================== -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="tag">DeepSeek 驱动 · Windows 桌面工具 · 绿色免安装</span>
+      <h1>选中文字，<em>双击即译</em>。<br>不离开当前应用。</h1>
+      <p class="sub">
+        在浏览器、PDF、代码编辑器里选中任何外文，双击 Ctrl+C——
+        一个<b>悬浮窗</b>即刻给出<b>翻译</b>和<b>解释</b>：整句译成中文；
+        读论文遇到术语、名词，物理意义不清楚，切到"解释"当场讲清。
+        不用切窗口、不打断阅读。
+      </p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/ReAmuroRay/DSTranslator/releases">下载绿色版</a>
+        <a class="btn ghost" href="#how">看看怎么用</a>
+      </div>
+      <p class="meta"><b>v0.6.0</b> · 免安装，无需 Python · 双击 Ctrl+C 即可触发</p>
+    </div>
+    <div class="hero-stage">
+      <div class="floatwin">
+        <div class="fw-grip"><span class="dots"><i></i><i></i><i></i></span> DSTranslator <span>拖动</span></div>
+        <div class="fw-tabs"><span class="fw-tab on">翻译</span><span class="fw-tab">解释</span></div>
+        <div class="fw-body">
+          <div class="fw-src">Torque saturation occurs when the flux density reaches its limit.</div>
+          <div class="fw-out">转矩饱和发生在磁通密度达到其极限时。</div>
+        </div>
+        <div class="fw-hint">Esc 收起 · 阅读不中断</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 为什么 ==================== -->
+<section class="pain">
+  <div class="wrap">
+    <h2>不是又一个翻译软件：翻译和解释，本该在同一个地方</h2>
+    <p class="sec-sub">读学术论文其实要解决两件事——"这句话什么意思"（翻译）和"这个术语的物理意义是什么"（解释）。现有的工具，都只做了一半。</p>
+    <div class="pain-grid">
+      <div class="step-card"><span class="n">翻译软件</span><span class="x">能译，但不解释。论文里的术语，译成中文你不懂还是不懂。</span></div>
+      <div class="step-card"><span class="n">词典 / 大模型聊天页</span><span class="x">词典给不了论文术语背后的物理意义；大模型页面能讲透，但要切窗口、粘贴、等回复——节奏全断。</span></div>
+    </div>
+    <div class="vs"><i></i> <span>DSTranslator：把两件事合进同一个悬浮窗，都由 DeepSeek 大模型驱动</span> <i></i></div>
+    <div class="pain-grid">
+      <div class="step-card"><span class="n">翻译</span><span class="x">大模型整句翻译，读起来是"人话"，不是机翻味。</span></div>
+      <div class="step-card"><span class="n">解释</span><span class="x">论文里遇到术语、名词，物理意义不清楚，选中即解释——讲清它是什么、意味着什么。</span></div>
+    </div>
+    <p class="fix">选中即出、同窗切换——不切应用，不打断阅读。</p>
+
+    <div class="cmp">
+      <h3>和现有工具比</h3>
+      <table class="cmp-table">
+        <thead>
+          <tr><th>需求</th><th>翻译软件</th><th>词典</th><th class="hl">DSTranslator</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>整句翻译成中文</td><td>✓</td><td>—</td><td class="hl">✓</td></tr>
+          <tr><td>解释术语的物理意义</td><td>✗</td><td>有限</td><td class="hl">✓ 大模型驱动</td></tr>
+          <tr><td>任意应用就地悬浮，不打断阅读</td><td>部分</td><td>✗</td><td class="hl">✓</td></tr>
+          <tr><td>结合上下文理解</td><td>✗</td><td>✗</td><td class="hl">✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 怎么用 ==================== -->
+<section class="demo-sec" id="how">
+  <div class="wrap">
+    <h2>它怎么工作？</h2>
+    <p class="sec-sub">左边是一篇论文里的一段英文。点一下按钮，模拟"双击 Ctrl+C"——先整句翻译；译完还有术语不懂，切到"解释"。</p>
+    <div class="demo-box">
+      <div class="demo-grid">
+        <div>
+          <div class="doc">
+            <h4>某电机工程论文 · 正在阅读</h4>
+            <p><span class="sel">When torque saturation occurs, the stator flux density has reached its limit; further increasing the armature current raises only the copper loss, not the output torque.</span></p>
+            <span class="cursor" id="cursor"></span>
+          </div>
+          <div class="demo-ctrls">
+            <button class="btn sm" id="demoBtn">▶ 模拟：双击 Ctrl+C</button>
+            <button class="btn sm ghost" id="demoReset">重播</button>
+            <span class="note" id="demoNote">等待触发…</span>
+          </div>
+        </div>
+        <div class="demo-right" id="demoRight">
+          <div class="floatwin">
+            <div class="fw-grip"><span class="dots"><i></i><i></i><i></i></span> DSTranslator <span>拖动</span></div>
+            <div class="fw-tabs"><span class="fw-tab on" data-tab="t">翻译</span><span class="fw-tab" data-tab="e">解释</span></div>
+            <div class="fw-body">
+              <div class="fw-src" id="fwSrc">When torque saturation occurs, the stator flux density has reached its limit; further increasing the armature current raises only the copper loss, not the output torque.</div>
+              <div class="fw-out" id="fwOut"></div>
+            </div>
+            <div class="fw-hint" id="fwHint">Esc 收起</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="shots">
+      <h3>真实运行效果</h3>
+      <div class="grid2">
+        <figure><img src="img/translate.png" alt="翻译结果"><figcaption>翻译：整句译成中文</figcaption></figure>
+        <figure><img src="img/explain.png" alt="解释结果"><figcaption>解释：术语的物理意义讲透</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 功能 ==================== -->
+<section class="feat" id="feat">
+  <div class="wrap">
+    <h2>功能一览</h2>
+    <p class="sec-sub">一句话：翻译和解释，装进同一个悬浮窗。</p>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="ic">⚡</div><h3>双击即译</h3><p>任意应用选中外文，双击 Ctrl+C 触发。普通单次复制不受影响，不会误弹。</p></div>
+      <div class="feat-card"><div class="ic">📖</div><h3>随手解释</h3><p>读论文遇到术语、名词，物理意义不清楚，切到"解释"标签，当场讲清它是什么。</p></div>
+      <div class="feat-card"><div class="ic">🧠</div><h3>深度解释</h3><p>一键开启思考模式，对难点给出更深入的分析。翻译、解释随开随切，自动重跑。</p></div>
+      <div class="feat-card"><div class="ic">🌐</div><h3>联网解释（可选）</h3><p>默认不联网，需要最新信息时可手动开启联网搜索，获取实时上下文。</p></div>
+      <div class="feat-card"><div class="ic">🪟</div><h3>轻量悬浮窗</h3><p>置顶、无边框，可拖动、可缩放，看完自动收起——正正好，不多不少。</p></div>
+      <div class="feat-card"><div class="ic">🕐</div><h3>历史记录</h3><p>每次翻译/解释自动保存在本地，可按关键词搜索、一键复制、导出 JSON。</p></div>
+      <div class="feat-card"><div class="ic">⏸️</div><h3>一键暂停捕获</h3><p>需要连着一串复制时，托盘一键暂停，互不干扰；随时再开。</p></div>
+      <div class="feat-card"><div class="ic">🔒</div><h3>隐私第一</h3><p>API key 用 Windows DPAPI 加密，仅本机当前用户可解密；数据全部本地保存。</p></div>
+    </div>
+
+    <div class="shots">
+      <div class="wide">
+        <figure><img src="img/workflow.png" alt="真实场景"><figcaption>真实场景：选中文字，双击 Ctrl+C，悬浮窗就地出现——不离开当前应用</figcaption></figure>
+      </div>
+      <div class="grid3" style="margin-top:14px;">
+        <figure><img src="img/history.png" alt="历史记录窗口"><figcaption>历史记录：本地保存、搜索、导出</figcaption></figure>
+        <figure><img src="img/settings.png" alt="快捷键设置"><figcaption>快捷键：双击 Ctrl+C / 自定义组合键</figcaption></figure>
+        <figure><img src="img/tray.png" alt="托盘菜单"><figcaption>托盘：一键暂停捕获，随时再开</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 快速上手 ==================== -->
+<section class="quick" id="start">
+  <div class="wrap">
+    <h2>三分钟上手</h2>
+    <p class="sec-sub">从下载到第一次翻译，三步。</p>
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <h3>下载并运行</h3>
+        <p>下载<code>绿色版</code>，解压后双击 <code>DSTranslator.exe</code>。免安装，不用装 Python。</p>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <h3>填入 API key</h3>
+        <p>首次启动填入你的 <code>DeepSeek API key</code>，本地加密保存，仅你可解密。</p>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <h3>选中文字，双击 Ctrl+C</h3>
+        <p>在任意应用里选中外文，<code>双击 Ctrl+C</code>，翻译即刻弹出。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 下载 ==================== -->
+<section class="dl" id="download">
+  <div class="wrap">
+    <h2>下载</h2>
+    <div class="dl-card">
+      <div class="info">
+        <h3>绿色版（v0.6.0）</h3>
+        <ul>
+          <li>免安装，解压即用，无需 Python 环境</li>
+          <li>支持 Windows 10 / 11</li>
+          <li>数据保存在程序目录 data/ 下，复制整个文件夹即可迁移备份</li>
+          <li>安装包约 137 MB（含完整运行环境）</li>
+        </ul>
+      </div>
+      <div>
+        <a class="btn" href="https://github.com/ReAmuroRay/DSTranslator/releases" style="font-size:17px; padding:16px 34px;">⬇ 从 GitHub Releases 下载</a>
+        <p style="color:var(--muted); font-size:12.5px; margin-top:10px; text-align:center;">Release 中的绿色版 zip，可直接下载使用</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== FAQ ==================== -->
+<section class="faq" id="faq">
+  <div class="wrap">
+    <h2>常见问题</h2>
+    <div class="faq-item"><details>
+      <summary>翻译和解释有什么区别？</summary>
+      <p>翻译把整句英文译成中文，解决"这句话什么意思"；解释针对术语、名词，用中文讲清它背后的物理意义或概念，解决"这玩意儿到底是什么"。选中的同一段文字，两个标签随时切换。</p>
+    </details></div>
+    <div class="faq-item"><details>
+      <summary>需要联网吗？</summary>
+      <p>翻译和解释由 DeepSeek 模型驱动，需要网络请求 API；默认不做联网搜索，只有你手动开启"联网解释"时才会上网查最新信息。</p>
+    </details></div>
+    <div class="faq-item"><details>
+      <summary>必须要有 DeepSeek API key 吗？</summary>
+      <p>需要。首次启动时配置你自己的 key，之后本地加密保存，仅当前 Windows 用户可解密。</p>
+    </details></div>
+    <div class="faq-item"><details>
+      <summary>我的内容会被发到网上吗？</summary>
+      <p>请求只发往 DeepSeek API 用于生成翻译/解释；默认不进行联网搜索。数据（历史记录、配置）全部保存在本地。</p>
+    </details></div>
+    <div class="faq-item"><details>
+      <summary>绿色版的数据存在哪里？</summary>
+      <p>在程序目录下的 <code>data/</code> 文件夹里。复制整个绿色版文件夹到新电脑即可完成迁移。</p>
+    </details></div>
+    <p style="color:var(--muted); font-size:13px; margin-top:14px;">更多细节见<a href="https://github.com/ReAmuroRay/DSTranslator/blob/main/docs/%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.md">《使用说明》</a>。</p>
+  </div>
+</section>
+
+<!-- ==================== Footer ==================== -->
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <a href="https://github.com/ReAmuroRay/DSTranslator">GitHub 仓库</a>
+      <a href="https://github.com/ReAmuroRay/DSTranslator/releases">Releases</a>
+      <a href="https://github.com/ReAmuroRay/DSTranslator/blob/main/docs/%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.md">使用说明</a>
+      <a href="https://github.com/ReAmuroRay/DSTranslator/blob/main/docs/CHANGELOG.md">更新日志</a>
+      <span>v0.6.0</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ---- 交互演示：模拟 双击 Ctrl+C → 悬浮窗打字流出 ----
+  const demoBtn = document.getElementById('demoBtn');
+  const demoReset = document.getElementById('demoReset');
+  const demoRight = document.getElementById('demoRight');
+  const fwOut = document.getElementById('fwOut');
+  const demoNote = document.getElementById('demoNote');
+  const cursorEl = document.getElementById('cursor');
+  let typing = null;
+  const TR = {
+    t: ['When torque saturation occurs, the stator flux density has reached its limit; further increasing the armature current raises only the copper loss, not the output torque.',
+        '当发生转矩饱和时，定子磁通密度已达极限；继续增大电枢电流只会提高铜耗，而不会增加输出转矩。'],
+    e: ['torque saturation',
+        '转矩饱和｜物理意义：铁芯磁通密度到达上限后，再加大电流也换不来转矩，多余电流全部变成热量（铜耗）。它是电机设计的工作边界，过载分析中常被提及。']
+  };
+
+  function stopTyping(){ if(typing){ clearInterval(typing); typing = null; } }
+
+  function play(){
+    stopTyping();
+    const cur = document.querySelector('#demoRight .fw-tab.on').dataset.tab;
+    const [src, out] = TR[cur];
+    document.getElementById('fwSrc').textContent = src;
+    demoNote.textContent = cur === 't' ? '触发成功 ✓ 翻译中…' : '触发成功 ✓ 解释中…';
+    // 光标移到选中文本，模拟双击
+    const doc = document.querySelector('.doc');
+    cursorEl.style.opacity = '1';
+    cursorEl.style.left = '0';
+    cursorEl.style.top = '64px';
+    setTimeout(() => { cursorEl.style.opacity = '0'; }, 600);
+    // 悬浮窗浮入
+    demoRight.classList.add('playing');
+    fwOut.textContent = '';
+    setTimeout(() => { typeOut(out); }, 420);
+  }
+
+  function typeOut(text){
+    let i = 0;
+    typing = setInterval(() => {
+      i++;
+      fwOut.innerHTML = text.slice(0, i) + '<span class="fw-caret"></span>';
+      if (i >= text.length){ clearInterval(typing); typing = null; demoNote.textContent = '完成 ✓ Esc 收起'; }
+    }, 18);
+  }
+
+  // 标签切换（翻译/解释）重放当前文案
+  document.querySelectorAll('#demoRight .fw-tab').forEach(t =>
+    t.addEventListener('click', () => {
+      document.querySelectorAll('#demoRight .fw-tab').forEach(x => x.classList.toggle('on', x === t));
+      const [src, out] = TR[t.dataset.tab];
+      document.getElementById('fwSrc').textContent = src;
+      fwOut.textContent = '';
+      demoNote.textContent = t.dataset.tab === 't' ? '翻译结果' : '解释结果';
+      typeOut(out);
+    }));
+
+  demoBtn.addEventListener('click', play);
+  demoReset.addEventListener('click', () => {
+    stopTyping(); fwOut.textContent = ''; demoRight.classList.remove('playing');
+    demoNote.textContent = '等待触发…';
+  });
+</script>
+</body>
+</html>

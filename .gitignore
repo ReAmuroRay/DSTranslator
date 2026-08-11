@@ -12,3 +12,6 @@ build/
 dist/*
 !dist/DSTranslator/
 dist/DSTranslator/data/
+
+# 落地页原型与截图工具(一次性)
+promo/
