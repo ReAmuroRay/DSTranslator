@@ -2,7 +2,7 @@
 
 DeepSeek 驱动的 Windows 翻译 / 解释悬浮窗工具。浏览网页或读 PDF 时,选中文字复制一下,立即看到翻译或释义,不用切换应用。
 
-🌐 **在线主页**:[https://reamuray.github.io/DSTranslator/](https://reamuray.github.io/DSTranslator/) —— 功能介绍、真实截图、使用说明。
+🌐 **在线主页**:[https://reamuroray.github.io/DSTranslator/](https://reamuroray.github.io/DSTranslator/) —— 功能介绍、真实截图、使用说明。
 
 ## ✨ 绿色版(免安装 · 拷贝即用)
 
