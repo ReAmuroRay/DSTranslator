@@ -15,3 +15,6 @@ dist/DSTranslator/data/
 
 # 落地页原型与截图工具(一次性)
 promo/
+
+# 演示 deck(保持本地,不进仓库)
+deck/
